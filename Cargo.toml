@@ -1,0 +1,18 @@
+[package]
+name = "bardock"
+version = "0.1.0"
+authors = ["kaziz <kaziz@bink.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "bardock"
+path = "src/bardock/lib.rs"
+
+[dependencies]
+structopt = "0.3.15"
+anyhow = "1.0"
+log = "0.4.6"
+
+[[bin]]
+name = "bardock"
