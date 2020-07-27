@@ -1,14 +1,20 @@
-// use bardock::util::{self, command_prelude, CliResult};
-use bardock::util::command_prelude;
+use bardock::util::{config::Config, command_prelude};
 mod cli;
 mod commands;
 
-// use crate::command_prelude::*;
-
 fn main() {
-    // todo: setup config
+    dotenv::dotenv().ok();
+    
+    // env_logger::init_from_env("BARDOCK_LOG");
+    env_logger::init();
 
-    match cli::main() {
+    // todo: setup config
+    let mut config = match Config::default() {
+        Ok(cfg) => cfg,
+        Err(e) => bardock::exit_with_error(e.into())
+    };
+
+    match cli::main(&mut config) {
         Ok(()) => {},
         Err(e) => bardock::exit_with_error(e),
     };

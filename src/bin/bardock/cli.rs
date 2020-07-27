@@ -1,8 +1,7 @@
 use super::commands;
-use bardock::{self, CliResult};
-use structopt::StructOpt;
+use bardock::{self, CliResult, Config};
 use structopt::clap::ArgMatches;
-
+use structopt::StructOpt;
 
 // #[derive(Debug, StructOpt)]
 // pub struct Test {
@@ -21,23 +20,18 @@ use structopt::clap::ArgMatches;
 
 #[derive(Debug, StructOpt)]
 pub enum Command {
-    New {},
-    Test {
-        arg1: String,
-        arg2: Option<String>,
-    }
+    New { path: String},
+    Test { arg1: String, arg2: Option<String> },
 }
-
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "bardock", about = "python extension builder")]
 pub struct Cli {
     #[structopt(subcommand)]
-    command: Command
+    command: Command,
 }
 
-
-pub fn main() -> CliResult{
+pub fn main(config: &mut Config) -> CliResult {
     let clap_args = Cli::clap().get_matches();
 
     let (cmd, subcommand_args) = match clap_args.subcommand() {
@@ -49,16 +43,12 @@ pub fn main() -> CliResult{
         }
     };
 
-    execute_subcommand(cmd, subcommand_args)
+    execute_subcommand(config, cmd, subcommand_args)
 }
 
-
-fn execute_subcommand(
-    cmd: &str,
-    args: &ArgMatches
-) -> CliResult {
+fn execute_subcommand(config: &mut Config, cmd: &str, args: &ArgMatches) -> CliResult {
     if let Some(exec) = commands::builtin_exec(cmd) {
-        return exec(args);
+        return exec(config, args);
     }
     Ok(())
 }

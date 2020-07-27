@@ -1,9 +1,7 @@
-pub use crate::util::{CliError, CliResult};
+pub use crate::util::{CliError, CliResult, Config, read_manifest};
 
 use anyhow::Error;
 use log::debug;
-
-pub mod util;
 
 pub fn exit_with_error(err: CliError) -> ! {
     debug!("exit_with_error; err={:?}", err);
@@ -21,7 +19,9 @@ pub fn exit_with_error(err: CliError) -> ! {
     std::process::exit(exit_code)
 }
 
-
 pub fn display_error(err: &Error) {
-    debug!("display_error; err={:?}", err);
+    println!("display_error; err={:?}", err);
 }
+
+pub mod ops;
+pub mod util;
