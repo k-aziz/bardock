@@ -1,4 +1,4 @@
-pub use self::config::{Config, cwd};
+pub use self::config::Config;
 pub use self::errors::{CliError, CliResult};
 pub use self::toml::read_manifest;
 

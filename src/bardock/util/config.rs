@@ -27,8 +27,3 @@ impl Config {
     }
 
 }
-
-// todo remove usages and this function as it's been moved to the config
-pub fn cwd() -> BardockResult<PathBuf>{
-    env::current_dir().with_context(|| "couldn't get the current directory of the process")
-}

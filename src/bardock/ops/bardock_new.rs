@@ -10,18 +10,42 @@ use std::str::from_utf8;
 use std::io::Write;
 use toml::{Value, value::Map};
 
+#[derive(Debug)]
+pub struct NewOptions {
+    pub path: PathBuf,
+    pub name: Option<String>,
+}
 
-// struct Options<'a> {
-//     path: &'a Path,
-//     name: &'a str,
-//     authors: Option<Vec<&'a str>>
-// }
+#[derive(Debug)]
+struct MkOpts<'a> {
+    path: &'a Path,
+    name: &'a str,
+}
+
+impl NewOptions {
+    pub fn new(
+        path: PathBuf,
+        name: Option<String>
+    ) -> BardockResult<NewOptions> {
+        let opts = NewOptions {
+            path,
+            name
+        };
+        Ok(opts)
+    }
+}
 
 
-pub fn new(path: &str, config: &Config) -> BardockResult<Option<std::process::Output>> {
+pub fn new(opts: &NewOptions, config: &Config) -> BardockResult<Option<std::process::Output>> {
     log::info!("Initialising new cargo project");
 
-    // let mk_opts = 
+    let path = &opts.path;
+    let name = get_name(path, opts)?;
+
+    let mk_opts = MkOpts {
+        path,
+        name
+    };
 
     let result = match Command::new("cargo").arg("new").arg(path).output() {
         Err(e) => {
@@ -36,12 +60,13 @@ pub fn new(path: &str, config: &Config) -> BardockResult<Option<std::process::Ou
         }
     };
 
-    make(config, path)?;
+    make(config, &mk_opts)?;
 
     Ok(Some(result))
 }
 
-fn make(config: &Config, path: &str) -> BardockResult<()> {
+fn make(config: &Config, opts: &MkOpts) -> BardockResult<()> {
+    let path = opts.path;
     let src_path = &config.cwd().join(&path);
     // let package_name = src_path.file_name();
 
@@ -52,13 +77,13 @@ fn make(config: &Config, path: &str) -> BardockResult<()> {
 
     let mut manifest = read_manifest(&manifest_path)
         .with_context(|| "Unable to read manifest")?;
-    let updated_manifest = match get_updated_manifest(&mut manifest) {
+    let updated_manifest = match get_updated_manifest(&mut manifest, opts) {
         Ok(manifest) => {
             toml::to_string(manifest)?
         }
         Err(e) => { anyhow::bail!("Failed to generate updated manifest: {}", e) }
     };
-    
+
     let mut file = File::create(&manifest_path)?;
     file.write_all(updated_manifest.as_bytes())
         .with_context(|| "Unable to write manifest data to file")?;
@@ -122,7 +147,7 @@ fn string_sum(py: Python, m: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
-fn get_updated_manifest(manifest: &mut CargoToml) -> BardockResult<&mut CargoToml> {
+fn get_updated_manifest<'a>(manifest: &'a mut CargoToml, opts: &MkOpts) -> BardockResult<&'a mut CargoToml> {
     let mut pyo3_dependency_map = Map::new();
     pyo3_dependency_map.insert(
         String::from("features"), 
@@ -134,10 +159,10 @@ fn get_updated_manifest(manifest: &mut CargoToml) -> BardockResult<&mut CargoTom
     );
 
     if let Some( Value::Table(ref mut libs) ) = manifest.lib {
-        update_manifest_lib(libs)?;
+        update_manifest_lib(libs, opts)?;
     } else {
         let mut libs = Map::new();
-        update_manifest_lib(&mut libs)?;
+        update_manifest_lib(&mut libs, opts)?;
         manifest.lib = Some(Value::from(libs));
     }
 
@@ -152,18 +177,20 @@ fn get_updated_manifest(manifest: &mut CargoToml) -> BardockResult<&mut CargoTom
     Ok(manifest)
 }
 
-fn update_manifest_lib(lib: &mut Map<String, Value>) -> BardockResult<&mut Map<String, Value>> {
+fn update_manifest_lib<'a>(lib: &'a mut Map<String, Value>, opts: &MkOpts) -> BardockResult<&'a mut Map<String, Value>> {
+    let librs_path = "src/lib.rs".to_string();
+    let crate_types = vec![Value::String("cdylib".to_string())];
     lib.insert(
         String::from("name"),
-        Value::String(String::from("some package name"))
+        Value::String(opts.name.to_string())
     );
     lib.insert(
         String::from("path"),
-        Value::String(String::from("path to lib.rs"))
+        Value::String(librs_path)
     );
     lib.insert(
         String::from("crate-type"),
-        Value::Array(vec![Value::String(String::from("cdylib"))])
+        Value::Array(crate_types)
     );
 
     Ok(lib)
@@ -186,24 +213,43 @@ fn update_manifest_dependencies(
     Ok(dependencies_map)
 }
 
+fn get_name<'a>(path: &'a Path, opts: &'a NewOptions) -> BardockResult<&'a str> {
+    if let Some(ref name) = opts.name {
+        return Ok(name);
+    }
+
+    let file_name = path.file_name().ok_or_else(|| {
+        anyhow::format_err!(
+            "cannot auto-detect package name from path {:?} ;",
+            path.as_os_str()
+        )
+    })?;
+
+    file_name.to_str().ok_or_else(|| {
+        anyhow::format_err!(
+            "cannot create package with a non-unicode name: {:?}",
+            file_name
+        )
+    })}
+
 
 #[cfg(test)]
 mod tests {
 
     use super::get_updated_manifest;
-    use crate::util::{errors::BardockResult, read_manifest, cwd};
+    use crate::{Config, util::{errors::BardockResult, read_manifest}};
     use std::path::Path;
 
     #[test]
     fn test_update_manifest() -> BardockResult<()> {
-        let cwd = &cwd()?;
-        let manifest_path = Path::new(cwd).join("src/bardock/ops/Cargo.toml");
+        let config = Config::default()?;
+        let manifest_path = &config.cwd().join("src/bardock/ops/Cargo.toml");
         println!("{:?}", manifest_path);
 
         let mut manifest = read_manifest(&manifest_path)?;
-        let new_man = get_updated_manifest(&mut manifest)?;
+        // let new_man = get_updated_manifest(&mut manifest)?;
 
-        println!("\nMANIFEST: \n{}", toml::to_string(new_man)?);
+        // println!("\nMANIFEST: \n{}", toml::to_string(new_man)?);
 
         Ok(())
     }

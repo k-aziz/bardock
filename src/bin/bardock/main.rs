@@ -8,7 +8,6 @@ fn main() {
     // env_logger::init_from_env("BARDOCK_LOG");
     env_logger::init();
 
-    // todo: setup config
     let mut config = match Config::default() {
         Ok(cfg) => cfg,
         Err(e) => bardock::exit_with_error(e.into())

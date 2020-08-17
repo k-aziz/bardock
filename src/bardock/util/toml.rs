@@ -32,6 +32,7 @@
 use serde::{Serialize, Deserialize};
 use std::{path::PathBuf, fs::File, io::{Read, BufReader}};
 use super::errors::BardockResult;
+use anyhow::Context;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CargoToml {
@@ -68,7 +69,8 @@ pub struct Package {
 
 pub fn read_manifest(manifest_path: &PathBuf) -> BardockResult<CargoToml> {
 
-    let manifest = File::open(manifest_path)?;
+    let manifest = File::open(manifest_path)
+        .with_context(|| format!("Failed to open file at {:?}", manifest_path.as_os_str()))?;
     let mut buf_reader = BufReader::new(manifest);
     let mut contents = String::new();
     buf_reader.read_to_string(&mut contents)?;
@@ -92,28 +94,18 @@ pub fn read_manifest(manifest_path: &PathBuf) -> BardockResult<CargoToml> {
 #[cfg(test)]
 mod tests {
     use super::read_manifest;
-    use std::{env, path::Path, fs::File};
-    use anyhow::Context;
-    use crate::util::errors::BardockResult;
-    use std::io::Write;
+    use crate::{Config, util::errors::BardockResult};
 
     #[test]
     fn test_read_manifest() -> BardockResult<()> {
-        let cwd = env::current_dir().with_context(|| "couldn't get the current directory of the process")?;
-        let src_path = &Path::new(&cwd).join("src/bardock/util");
+        let config = Config::default()?;
+        let src_path = &config.cwd().join("src/bardock/test/fixtures/Cargo.toml");
 
         let manifest = read_manifest(src_path)?;
 
-        println!("\nMANIFEST: {:?}", manifest);
-
         let new_man = toml::to_string(&manifest)?;
-        
-        let mut new_outfile = File::create(src_path.join("outfile.toml"))?;
-        new_outfile.write_all(
-            new_man.as_bytes()
-        )?;
-        println!("\nNEW MANIFEST:\n{}", new_man);
 
+        println!("{}", new_man);
 
         Ok(())
     }
